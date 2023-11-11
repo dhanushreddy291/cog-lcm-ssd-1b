@@ -2,43 +2,34 @@
 from cog import BasePredictor, Input, Path
 import os
 import torch
-from PIL import Image
 from typing import List
-from diffusers import UNet2DConditionModel, DiffusionPipeline, LCMScheduler
+from diffusers import LCMScheduler, AutoPipelineForText2Image
 
-MODEL_NAME = "segmind/SSD-1B"
+MODEL_NAME = "stabilityai/stable-diffusion-xl-base-1.0"
 MODEL_CACHE = "model-cache"
-MODEL_UNET = "latent-consistency/lcm-ssd-1b"
-UNET_CACHE = "unet-cache"
+ADAPTER_ID = "latent-consistency/lcm-lora-sdxl"
+ADAPTER_CACHE = "adapter-cache"
 
 class Predictor(BasePredictor):
     def setup(self) -> None:
-        """Load the model into memory to make running multiple predictions efficient"""
-        unet = UNet2DConditionModel.from_pretrained(
-            MODEL_UNET,
-            torch_dtype=torch.float16,
-            variant="fp16",
-            cache_dir=UNET_CACHE,
-            local_files_only=True,
-        )
-        self.pipe = DiffusionPipeline.from_pretrained(
+        self.pipe = AutoPipelineForText2Image.from_pretrained(
             MODEL_NAME,
-            unet=unet,
-            torch_dtype=torch.float16,
-            variant="fp16",
             cache_dir=MODEL_CACHE,
-            local_files_only=True,
+            torch_dtype=torch.float16,
+            variant="fp16"     
         ).to("cuda")
+        self.pipe.load_lora_weights(ADAPTER_ID, cache_dir=ADAPTER_CACHE)
+        self.pipe.fuse_lora()
 
     def predict(
         self,
         prompt: str = Input(
             description="Input prompt",
-            default="a close-up picture of an old man standing in the rain"
+            default="A beautiful brunette pilot girl, beautiful, moody lighting, best quality, full body portrait, real picture, intricate details, depth of field, in a cold snowstorm, , Fujifilm XT3, outdoors, bright day, Beautiful lighting, RAW photo, 8k uhd, film grain, unreal engine 5, ray travig"
         ),
         negative_prompt: str = Input(
             description="Input Negative Prompt",
-            default="",
+            default="3d, cgi, render, bad quality, normal quality",
         ),
         num_outputs: int = Input(
             description="Number of images to output.",
@@ -49,10 +40,6 @@ class Predictor(BasePredictor):
         num_inference_steps: int = Input(
             description="Number of inference steps",
             ge=1, le=10, default=4,
-        ),
-        guidance_scale: float = Input(
-            description="Factor to scale image by", 
-            ge=0, le=10, default=8.0
         ),
         seed: int = Input(
             description="Random seed. Leave blank to randomize the seed", default=None
@@ -69,7 +56,7 @@ class Predictor(BasePredictor):
         common_args = {
             "prompt": [prompt] * num_outputs,
             "negative_prompt": [negative_prompt] * num_outputs,
-            "guidance_scale": guidance_scale,
+            "guidance_scale": 0,
             "generator": generator,
             "num_inference_steps": num_inference_steps,
         }

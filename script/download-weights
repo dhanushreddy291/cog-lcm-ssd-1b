@@ -2,28 +2,23 @@
 import os
 import sys
 import torch
-from diffusers import UNet2DConditionModel, DiffusionPipeline, LCMScheduler
+from diffusers import AutoPipelineForText2Image, LCMScheduler
 
 # append project directory to path so predict.py can be imported
 sys.path.append('.')
 
-from predict import MODEL_NAME, MODEL_UNET, MODEL_CACHE, UNET_CACHE
+from predict import MODEL_NAME, MODEL_CACHE, ADAPTER_ID, ADAPTER_CACHE
 
 # Make cache folder
 if not os.path.exists(MODEL_CACHE):
     os.makedirs(MODEL_CACHE)
 
-unet = UNet2DConditionModel.from_pretrained(
-    MODEL_UNET,
-    torch_dtype=torch.float16,
-    variant="fp16",
-    cache_dir=UNET_CACHE
-)
-
-pipe = DiffusionPipeline.from_pretrained(
+pipe = AutoPipelineForText2Image.from_pretrained(
     MODEL_NAME,
-    unet=unet,
+    cache_dir=MODEL_CACHE,
     torch_dtype=torch.float16,
-    variant="fp16",
-    cache_dir=MODEL_CACHE
+    variant="fp16"     
 )
+pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
+pipe.load_lora_weights(ADAPTER_ID, cache_dir=ADAPTER_CACHE)
+pipe.fuse_lora()
