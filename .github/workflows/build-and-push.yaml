@@ -1,0 +1,28 @@
+name: build-and-push
+
+on:
+  push:
+    branches:
+      - "cog-actions"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3 # This step checkouts the code of the repository
+        
+      - name: Setup Cog
+        uses: replicate/setup-cog@v1
+        with:
+            token: ${{ secrets.REPLICATE_API_TOKEN }}
+        
+      - name: Download Weights
+        run: cog run script/download-weights
+          
+      - name: Push to Replicate
+        run: cog push r8.im/dhanushreddy291/ssd-1b-lcm
